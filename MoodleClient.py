@@ -14,6 +14,8 @@ import time
 from ProxyCloud import ProxyCloud
 import socket
 import socks
+import aiohttp
+from aiohttp_socks import ProxyConnector
 import asyncio
 
 import threading
@@ -59,6 +61,13 @@ class MoodleClient(object):
         self.proxy = None
         if proxy :
            self.proxy = proxy.as_dict_proxy()
+
+# Atributos privados
+        self.__Session = None
+        self.eventloop = None
+        self.__Headers: dict = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36"
+        }
 
     def getsession(self):
         return self.session
