@@ -14,10 +14,10 @@ import time
 from ProxyCloud import ProxyCloud
 import socket
 import socks
-import aiohttp
-from aiohttp_socks import ProxyConnector
 import asyncio
 
+import aiohttp
+from aiohttp_socks import ProxyConnector
 import threading
 
 import S5Crypto
@@ -63,7 +63,7 @@ class MoodleClient(object):
            self.proxy = proxy.as_dict_proxy()
 
 # Atributos privados
-        self.__Session = None
+       # self.__Session = None
         self.eventloop = None
         self.__Headers: dict = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36"
@@ -94,7 +94,83 @@ class MoodleClient(object):
         sesskey  =  soup.find('input',attrs={'name':'sesskey'})['value']
         return sesskey
 
-    def login(self):
+
+async def __construct(self):
+        self.eventloop = asyncio.get_event_loop()
+        connector = aiohttp.TCPConnector(verify_ssl=False)
+        if self.proxy:
+            connector = ProxyConnector(
+                 proxy_type=ProxyType.SOCKS5,
+                 host=self.proxy.ip,
+                 port=self.proxy.port,
+                 rdns=True,
+                 verify_ssl=False
+            )
+        self.__Session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True),connector=connector)
+
+    async def logout(self) -> None:
+        await self.session.close()
+        self.session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True),connector=aiohttp.TCPConnector(verify_ssl=False))
+
+    ##############################################################################
+    async def login(self,path: str, progress_callback: Callable = None,args=None) -> bool:
+            await self.__construct()
+            # Intentar iniciar sesión
+            try:
+
+                # Extraer el token de inicio de sesión
+                timeout = aiohttp.ClientTimeout(total=20)
+                async with self.session.get(
+                    url=self.patch + "/login/index.php",
+                    headers=self.__Headers,
+                    timeout=timeout,
+                ) as response:
+                    html = await response.text()
+
+                # Preparar payload de inicio de sesión
+                try:
+                    # Caso para veriones modernas de Moodle
+                    soup = BeautifulSoup(html, "html.parser")
+                    token = soup.find("input", attrs={"name": "logintoken"})["value"]
+                    payload = {
+                        "anchor": "",
+                        "logintoken": token,
+                        "username": self.username,
+                        "password": self.password,
+                        "rememberusername": 1,
+                    }
+                except:
+                    # Caso para la versión obsoleta de Aulavirtual de SLD
+                    payload = {
+                        "anchor": "",
+                        "username": self.username,
+                        "password": self.password,
+                        "rememberusername": 1,
+                    }
+
+                # Iniciar sesión
+                async with self.session.post(
+                    url=self.path + "/login/index.php",
+                    headers=self.__Headers,
+                    data=payload,
+                    timeout=timeout,
+                ) as response:
+                    await response.text()
+
+                # Comprobar si no redireccionó desde /login/index.php
+                if str(response.url).lower() == (self.patch + "/login/index.php").lower():
+                    # Error, datos incorrectos
+                    ret = False      
+                else:
+                    # Sesión iniciada
+                    ret = True
+                    # print(self.__Session.cookie_jar.filter_cookies(URL(self.ServerUrl)))
+
+            except:
+                 # Error desconocido (mayormente conexión)
+                ret = False
+                
+    '''def login(self):
         try:
             login = self.path+'login/index.php'
             resp = self.session.get(login,proxies=self.proxy)
@@ -137,14 +213,14 @@ class MoodleClient(object):
                 return True
         except Exception as ex:
             pass
-        return False
+        return False'''
 
     def createEvidence(self,name,desc=''):
         evidenceurl = self.path + 'admin/tool/lp/user_evidence_edit.php?userid=' + self.userid
         resp = self.session.get(evidenceurl,proxies=self.proxy)
         soup = BeautifulSoup(resp.text,'html.parser')
 
-        sesskey  =  self.sesskey
+        sesskey  =  self.getSessKey() I
         files = self.extractQuery(soup.find('object')['data'])['itemid']
 
 
@@ -590,9 +666,9 @@ class MoodleClient(object):
 
         return resp3
 
-    def logout(self):
+    "def logout(self):
         logouturl = self.path + 'login/logout.php?sesskey=' + self.sesskey
-        self.session.post(logouturl,proxies=self.proxy)
+        self.session.post(logouturl,proxies=self.proxy)'''
 
 
 #client = MoodleClient('obysoft2','Obysoft2001@','https://aulacened.uci.cu/',repo_id=3)
